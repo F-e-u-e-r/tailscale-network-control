@@ -1,5 +1,5 @@
 #!/sbin/openrc-run
-# Tailscale AI Egress — exit-node failover controller (Alpine/OpenRC)
+# Tailscale Network Control — exit-node failover controller (Alpine/OpenRC)
 #
 # Prerequisites (Alpine ships BusyBox ash, not Bash; logrotate is separate too):
 #   apk add bash python3 logrotate
@@ -17,7 +17,7 @@
 # Output goes to /var/log/failover-exit-node.log; rotate it with logrotate (see
 # docs/examples/README.md). This controller changes the exit node; the monitor does not.
 
-name="Tailscale AI Egress exit-node failover controller"
+name="Tailscale Network Control exit-node failover controller"
 description="Watches exit-node health and switches/restores the exit node"
 
 command="/opt/tailscale-ai-egress/failover-exit-node.sh"

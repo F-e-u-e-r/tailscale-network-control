@@ -22,7 +22,7 @@ usage() {
   cat <<'EOF'
 Usage: ./diagnose.sh [--domain-pack name] [--domains-file path] [--connector-tag tag] [--json] [--version]
 
-VPS-side diagnostics for a Tailscale AI App Connector host. Run
+VPS-side diagnostics for a Tailscale App Connector host. Run
 check-client-routes.sh on a client device to verify client routing.
 Connector tag detection precedence: --connector-tag, then the CONNECTOR_TAG
 environment variable, then generated/connector-identity.env, then the
@@ -529,7 +529,7 @@ check_domain_routes() {
   fi
 
   if [ "$sample_count" -eq 0 ]; then
-    record FAIL "No non-wildcard AI domains are available for sample route checks." "sample-domain-routes"
+    record FAIL "No non-wildcard domains are available for sample route checks." "sample-domain-routes"
     return 0
   fi
 
@@ -563,7 +563,7 @@ EOF
   done <"$domains_tmp"
 
   if [ "$resolved_any" = "0" ]; then
-    record FAIL "No sample AI domains resolved successfully." "sample-domain-routes"
+    record FAIL "No sample domains resolved successfully." "sample-domain-routes"
   fi
 }
 

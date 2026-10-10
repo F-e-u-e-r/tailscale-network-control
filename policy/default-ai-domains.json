@@ -13,5 +13,19 @@
   "*.openrouter.ai",
   "perplexity.ai",
   "*.perplexity.ai",
-  "notebooklm.google.com"
+  "notebooklm.google.com",
+  "notebooklm.google",
+  "notebook.google",
+  "notebook.google.com",
+  "muse.ai",
+  "notebooklm-pa.googleapis.com",
+  "huggingface.co",
+  "*.huggingface.co",
+  "accounts.spacex.ai",
+  "accounts.x.ai",
+  "*.cursor.sh",
+  "*.cursor-cdn.com",
+  "*.cursorapi.com",
+  "*.cursorvm.com",
+  "downloads.cursor.com"
 ]

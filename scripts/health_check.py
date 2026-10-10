@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Health probing and failover decision engine for Tailscale AI Egress.
+"""Health probing and failover decision engine for Tailscale egress and exit-node failover.
 
 Standard-library only so it runs on a fresh VPS / client without extra packages.
 

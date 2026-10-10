@@ -45,11 +45,13 @@ with a clear "regenerate the plan" message.
 
 ### Built-in domain list
 
-The built-in domain list is `common`. Its contents may gain or adjust provider
-domains in minor releases, but the `common` selection and `--domain-pack common`
-remain stable. Custom domains are supported with `--domains-file`. The
-standalone fallback list embedded in `check-client-routes.sh` is kept in sync
-with `policy/default-ai-domains.json` (a unit test enforces this).
+The built-in domain list is `common`, an **example** selective-routing policy (common
+AI-service domains; see [`policy/README.md`](../policy/README.md)). It is not authoritative
+or exhaustive, and selective routing itself is not AI-specific. Its contents may gain or
+adjust provider domains in minor releases, but the `common` selection and
+`--domain-pack common` remain stable. Custom domains are supported with `--domains-file`.
+The standalone fallback list embedded in `check-client-routes.sh` is kept in sync with
+`policy/default-ai-domains.json` (a unit test enforces this).
 
 ## Recommended modes (unchanged in 1.x)
 

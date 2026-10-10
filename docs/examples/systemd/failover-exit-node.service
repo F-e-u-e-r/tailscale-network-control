@@ -1,4 +1,4 @@
-# Tailscale AI Egress — exit-node failover controller (Linux/systemd)
+# Tailscale Network Control — exit-node failover controller (Linux/systemd)
 #
 # Install:
 #   sudo cp docs/examples/systemd/failover-exit-node.service /etc/systemd/system/
@@ -7,7 +7,7 @@
 #   sudo systemctl enable --now failover-exit-node.service
 
 [Unit]
-Description=Tailscale AI Egress exit-node failover controller
+Description=Tailscale Network Control exit-node failover controller
 After=tailscaled.service network-online.target
 Wants=network-online.target
 

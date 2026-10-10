@@ -1,5 +1,5 @@
 #!/sbin/openrc-run
-# Tailscale AI Egress — connector high-availability monitor (Alpine/OpenRC)
+# Tailscale Network Control — connector high-availability monitor (Alpine/OpenRC)
 #
 # Read-only: this monitor never changes anything; it only reports connector health.
 #
@@ -19,7 +19,7 @@
 # Output goes to /var/log/monitor-connectors.log; rotate it with logrotate (see
 # docs/examples/README.md).
 
-name="Tailscale AI Egress connector HA monitor"
+name="Tailscale Network Control connector HA monitor"
 description="Watches connector health and reports (read-only)"
 
 command="/opt/tailscale-ai-egress/monitor-connectors.sh"

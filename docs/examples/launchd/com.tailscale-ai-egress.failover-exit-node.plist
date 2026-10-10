@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Tailscale AI Egress - exit-node failover controller (macOS/launchd)
+  Tailscale Network Control - exit-node failover controller (macOS/launchd)
 
   Install (per-user):
     cp docs/examples/launchd/com.tailscale-ai-egress.failover-exit-node.plist \

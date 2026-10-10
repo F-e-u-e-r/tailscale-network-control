@@ -42,4 +42,4 @@ Do not copy Linux-only commands such as `net.ipv4.ip_forward` or `/etc/sysctl.d/
 - Expect home router restarts, Wi-Fi roaming, or sleep to disconnect the exit node.
 - Remember that all selected-client internet traffic uses the home connection while the exit node is active.
 
-For everyday AI-only routing, the Linux App Connector remains the recommended mode.
+For everyday selective-domain routing, the Linux App Connector remains the recommended mode.

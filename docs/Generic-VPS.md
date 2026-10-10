@@ -21,7 +21,7 @@ App Connector mode is selective and usually light on transfer. Exit-node fallbac
 - Check whether the provider blocks or rate-limits VPN-like traffic.
 - Check whether firewall rules allow SSH and outbound HTTPS.
 - Check the public IP reputation if the use case depends on service availability from that IP.
-- Prefer a region close to the AI service region you want to test, not merely close to your home device.
+- Prefer a region close to the service region you want to test, not merely close to your home device.
 
 ## Setup
 

@@ -12,7 +12,7 @@ AI-Egress-JP
 
 Avoid spaces if the policy editor rejects them.
 
-## The AI Domain Does Not Route Through Tailscale
+## A Configured Domain Does Not Route Through Tailscale
 
 Run the client route checker from the Mac or Linux client:
 
@@ -20,7 +20,7 @@ Run the client route checker from the Mac or Linux client:
 ./check-client-routes.sh
 ```
 
-It checks all IPv4 A records for each configured AI domain. If some IPs route
+It checks all IPv4 A records for each configured domain. If some IPs route
 through Tailscale and others do not, it reports `[WARN]` because DNS discovery
 or route advertisement may still be settling.
 
@@ -49,7 +49,7 @@ If it still uses the local default route:
 
 That is expected for ordinary traffic. App Connector mode routes only matching app domains. Use `route -n get` or browser testing against the target domain instead of a generic IP check.
 
-If you intentionally selected an exit node on the client, public IP checks should show the exit node's egress IP instead. In that mode, all non-Tailscale traffic is using the selected exit node, not only AI domains.
+If you intentionally selected an exit node on the client, public IP checks should show the exit node's egress IP instead. In that mode, all non-Tailscale traffic is using the selected exit node, not only the configured domains.
 
 ## Baseline Traffic Uses Tailscale Unexpectedly
 
@@ -69,7 +69,7 @@ The baseline domain defaults to `ipinfo.io`. In connector-only mode, it should s
 ./check-client-routes.sh --baseline-domain affected-site.example
 ```
 
-If the affected site shares a CDN IP with a configured AI domain, see the shared CDN section below.
+If the affected site shares a CDN IP with a configured domain, see the shared CDN section below.
 
 ## Shared CDN IPs Route More Than Expected
 
@@ -81,7 +81,7 @@ To diagnose a suspected case, run the baseline check against the affected site:
 ./check-client-routes.sh --baseline-domain affected-site.example
 ```
 
-If it routes through Tailscale while no exit node is selected, compare its resolved IPs with the AI domains being routed. Mitigate by using a custom `--domains-file` that removes broad provider/CDN domains you do not need. This is a route granularity limitation of IP-based route installation, not a VPS failure.
+If it routes through Tailscale while no exit node is selected, compare its resolved IPs with the configured domains being routed. Mitigate by using a custom `--domains-file` that removes broad provider/CDN domains you do not need. This is a route granularity limitation of IP-based route installation, not a VPS failure.
 
 ## Exit Node Is Not Visible
 

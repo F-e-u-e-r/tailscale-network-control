@@ -47,7 +47,7 @@ full matrix and the current manual validation status.
 - Tailscale account, billing, or platform problems — contact
   [Tailscale support](https://tailscale.com/contact/support).
 - VPS provisioning, networking, or billing — contact your VPS provider.
-- AI service provider terms, availability, or account issues — contact that
+- Destination service provider terms, availability, or account issues — contact that
   provider.
 - Anything in the "out of scope" list of [CONTRIBUTING.md](CONTRIBUTING.md):
   GUIs, telemetry, extra proxy protocols, automatic VPS purchasing.

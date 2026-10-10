@@ -1,6 +1,7 @@
 # Contributing
 
-Thanks for your interest in improving the Tailscale AI Egress Connector toolkit.
+Thanks for your interest in improving the Tailscale Network Control toolkit (the
+`tailscale-ai-egress` repository).
 This project favors stability and trust over feature count, so contributions are
 reviewed with that bias.
 

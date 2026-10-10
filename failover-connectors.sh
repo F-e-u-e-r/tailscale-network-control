@@ -34,7 +34,7 @@ usage() {
 Usage: ./failover-connectors.sh [--to tag:<pool> [--apply]]
 
 Model B (distinct-tag) active connector switch: an operator-invoked, one-shot,
-auditable forced selection of which connector pool serves the AI domain set.
+auditable forced selection of which connector pool serves the configured domain set.
 See docs/Failover.md "Advanced Mode" for the full workflow.
 
 Modes:

@@ -22,7 +22,7 @@ usage() {
   cat <<'EOF'
 Usage: ./check-client-routes.sh [--domain-pack name] [--domains-file path] [--baseline-domain domain] [--json] [--version]
 
-Client-side route verification for Tailscale AI App Connector setups.
+Client-side route verification for Tailscale App Connector setups (selective domain routing).
 
 Options:
   --domain-pack name      Use the common domain pack. Default: common.
@@ -215,6 +215,20 @@ openrouter.ai
 perplexity.ai
 *.perplexity.ai
 notebooklm.google.com
+notebooklm.google
+notebook.google
+notebook.google.com
+muse.ai
+notebooklm-pa.googleapis.com
+huggingface.co
+*.huggingface.co
+accounts.spacex.ai
+accounts.x.ai
+*.cursor.sh
+*.cursor-cdn.com
+*.cursorapi.com
+*.cursorvm.com
+downloads.cursor.com
 EOF
       ;;
   esac
@@ -722,7 +736,7 @@ main() {
   write_domain_list "$domains_tmp"
 
   if [ "$JSON_OUTPUT" != "1" ]; then
-    printf '\n== AI domain routes ==\n'
+    printf '\n== Domain routes ==\n'
   fi
   local wildcard_count=0
   local checked_count=0
@@ -742,7 +756,7 @@ main() {
     record WARN "Skipped $wildcard_count wildcard domain(s); route checks require concrete domains." "ai-domain-route" "{\"wildcards_skipped\":$wildcard_count}"
   fi
   if [ "$checked_count" -eq 0 ]; then
-    record FAIL "No non-wildcard AI domains are available for route checks." "ai-domain-route"
+    record FAIL "No non-wildcard domains are available for route checks." "ai-domain-route"
   fi
 
   if [ "$JSON_OUTPUT" != "1" ]; then

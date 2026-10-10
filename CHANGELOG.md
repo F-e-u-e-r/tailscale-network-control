@@ -13,6 +13,21 @@ both Python CLIs report it with `--version`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Repositioned as Tailscale Network Control (documentation).** The public-facing docs now
+  present the project as a general selective-routing / health-aware-failover / monitoring
+  companion for Tailscale rather than an AI-specific tool. The bundled `common` domain pack
+  (`policy/default-ai-domains.json`) is now clearly documented as an **example** policy and
+  expanded to a broader set of common AI-service domains (OpenAI, Anthropic, Poe, OpenRouter,
+  Perplexity, Google NotebookLM, muse.ai, Hugging Face, xAI, Cursor);
+  `policy/app-connector.example.json` and the `check-client-routes.sh` standalone fallback
+  list were updated in lockstep. The default `common` pack therefore routes more example
+  domains (a contents change explicitly allowed by [Stability](docs/Stability.md)); there is
+  no CLI, JSON-schema, or routing-engine change. Internal identifiers (`tag:ai-egress-*`,
+  `AI-Egress-*`, `AI_EGRESS_DOMAINS_FILE`, `policy/default-ai-domains.json`, `--version`
+  strings, the repository URL) are unchanged for compatibility.
+
 ## [1.4.0] - 2026-09-08
 
 ### Added
