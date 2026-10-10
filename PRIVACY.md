@@ -39,13 +39,13 @@ sends no telemetry and performs no update check on this project's behalf. For st
 | Endpoint | Why |
 | --- | --- |
 | `https://ifconfig.co/ip` and `https://ifconfig.co/asn` | Report the VPS public IPv4/IPv6 egress address and ASN |
-| Your DNS resolver | Resolve a small sample of configured AI domains to check routing |
+| Your DNS resolver | Resolve a small sample of configured domains to check routing |
 
 `check-client-routes.sh` (client device):
 
 | Endpoint | Why |
 | --- | --- |
-| Your DNS resolver | Resolve the configured AI domains and the baseline domain (`ipinfo.io` by default) |
+| Your DNS resolver | Resolve the configured domains and the baseline domain (`ipinfo.io` by default) |
 
 `check-client-routes.sh` does **not** make HTTP requests. It only performs DNS
 lookups and reads the local routing table (`route get` / `ip route get`). The

@@ -1,5 +1,10 @@
 # Roadmap
 
+> **Project status.** This repository is being prepared for archival (see the README) and
+> is no longer planned for active feature development. This roadmap is retained for
+> historical context. Future work is moving toward a broader secure-networking architecture
+> that is not constrained to an AI-specific use case.
+
 This is a **non-binding** planning document for direction beyond v1.4.0. It does
 not promise dates or delivery. The binding contract is [Stability](Stability.md):
 within 1.x nothing under its "Frozen surface" changes incompatibly, and GUI /
@@ -78,7 +83,7 @@ kept for the record.
   Same-tag native HA stays the default and recommended model, and the monitor
   stays read-only. Apply mode is a separate ADVANCED mode — the **distinct-tag
   active connector switch** — an operator-invoked, one-shot, auditable forced
-  selection of which connector pool (tag) serves the AI domain set, for the
+  selection of which connector pool (tag) serves the configured domain set, for the
   online-but-bad cases native selection cannot see (wrong egress IP, degraded
   provider path, provider quota, manual evacuation). It composes with native
   HA (which keeps operating inside each pool) and does not replace it; there

@@ -1,7 +1,7 @@
 # Security Policy
 
-This project bootstraps a personal Tailscale AI App Connector on infrastructure
-you control. It is designed to be safe by default: manual policy setup is the
+This project bootstraps a personal Tailscale App Connector (selective domain egress) on
+infrastructure you control. It is designed to be safe by default: manual policy setup is the
 primary path, and policy automation is Advanced Mode only.
 
 ## Supported Versions

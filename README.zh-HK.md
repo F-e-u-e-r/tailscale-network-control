@@ -1,4 +1,4 @@
-# Tailscale AI Egress Connector
+# Tailscale Network Control
 
 語言：[English](README.md) | 繁體中文（香港）
 
@@ -7,13 +7,21 @@
 ![Version](https://img.shields.io/badge/version-1.4.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Linux%20VPS%20%C2%B7%20POSIX%20shell-lightgrey)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)
-![status](https://img.shields.io/badge/status-LIVE-2ee6a6)
+![status](https://img.shields.io/badge/status-ARCHIVED-6b6f73)
 
 > `README.md` 是最新內容的主要來源。本中文文件使用香港繁體中文。
 
-> **Stable v1.x.** 1.0 的 command surface 已凍結，詳見 [docs/Stability.md](docs/Stability.md)；v1.1 新增 opt-in failover 與 health-monitoring helpers（`failover-exit-node.sh`、`monitor-connectors.sh`），不會改變原有 command surface。所有 entrypoint 都支援 `--version` 和 `--help`。
+一個為 Tailscale 而設的輕量配套工具組——為用於安全私人存取的 tailnet 加上**選擇性路由、健康感知 failover，以及網絡用量可視性**。
 
-這個 repo 會幫你建立一台個人用 Tailscale App Connector，將指定 AI 相關 domains 經一台 VPS 的固定出口 IP 連出去，同時讓一般網絡流量繼續使用本地網絡或你慣用的 exit node。
+Tailscale 本身已提供裝置之間的安全私人存取——例如 Tailscale SSH、經 tailnet 的 macOS Screen Sharing，以及其他私人服務。本工具組**並不**實作或管理 SSH、Screen Sharing 或 VNC；它在同一個 tailnet 上、於這些服務**旁邊**加上一層選擇性對外出口，不會接觸這些點對點服務。它會設定一台 Tailscale **App Connector**，套用**選擇性 domain 路由政策**（只有你選定的 domains 使用 VPS 出口 IP，其餘流量留在本地網絡或你慣用的 exit node）、提供**有序、健康感知的 exit-node failover**，以及一個 fail-closed、由操作者觸發的 connector pool 切換（與 Tailscale 原生的 connector 上線／離線 HA 並行），並回報 **connector 健康與網絡用量**（相容 Prometheus）。
+
+隨附的 AI 服務 domain 政策僅屬**範例**——見[範例 domain 政策](#example-domain-policy-ai-services)。路由、failover 與監察機制與 domain 無關——這是一個通用的選擇性路由工具組——但其預設值與歷史識別碼為相容而保留 AI 命名（見下方建議名稱說明）。
+
+> **建議名稱。** 為反映更廣闊的範圍，對外名稱正更新為 **Tailscale Network Control**（建議 repository 名稱 `tailscale-network-control`）。本專案仍由 `tailscale-ai-egress` repository 發佈，部分內部識別碼——service tags（`tag:ai-egress-*`）、預設 connector 名稱（`AI-Egress-*`）、狀態／安裝路徑、`AI_EGRESS_DOMAINS_FILE` 環境變數、`--version` 字串，以及 GitHub repository URL——刻意保留歷史名稱 `tailscale-ai-egress` 以維持相容。下方的 clone 與下載指令使用該歷史名稱，因為那是真正的 repository URL。
+
+> **專案狀態。** 本 repository 正準備封存（archive），不再計劃主動開發新功能。它仍可作為參考實作：其已驗證的路由、failover 與監察語意依然適用，而隨附的 AI 服務 domain 政策僅屬範例。未來工作會轉向更廣闊、不限於 AI 用途的安全網絡架構。
+
+> **Stable v1.x.** 1.0 的 command surface 已凍結，詳見 [docs/Stability.md](docs/Stability.md)；v1.1 新增 opt-in failover 與 health-monitoring helpers（`failover-exit-node.sh`、`monitor-connectors.sh`），不會改變原有 command surface。所有 entrypoint 都支援 `--version` 和 `--help`。
 
 ## 預設路徑
 
@@ -29,10 +37,12 @@ cd tailscale-ai-egress
 
 ## 功能
 
-- **🎯 Domain-selective AI egress** — 只把你選的 AI domains 經 VPS 出口 IP，其他流量繼續走本地網絡或你慣用的 exit node。
-- **🔁 同區 connector failover** — 多台 App Connector 共用同一 tag，其中一台離線時，新的 AI-domain 連線會轉去仍在線的 connector。
+本工具組為既有 Tailscale tailnet 加上三項能力：選擇性路由、健康感知 failover，以及網絡用量可視性。
+
+- **🎯 選擇性 domain 路由** — 只把你選的 domains 經 VPS 出口 IP，其他流量繼續走本地網絡或你慣用的 exit node。隨附政策以常見 AI 服務 domains 作[範例](#example-domain-policy-ai-services)。
+- **🔁 同區 connector failover** — 多台 App Connector 共用同一 tag，其中一台離線時，新的符合條件連線會轉去仍在線的 connector。
 - **🛟 Exit-node failover controller** — `failover-exit-node.sh --watch --apply` 在主 exit node 健康檢查失敗時切換到備援，具備 hysteresis、cooldown 和可選的 post-switch notify hook。
-- **🔀 Distinct-tag connector switch（Model B，進階）** — `failover-connectors.sh --to tag:<pool> --apply` 透過 audited plan pipeline 強制指定哪個 connector pool 服務 AI domain set，處理 native HA 看不到的 online-but-bad 情況（egress IP 錯誤、路徑劣化、quota、撤離）。Observe-first 且 fail-closed；見 [docs/Failover.md](docs/Failover.md)。
+- **🔀 Distinct-tag connector switch（Model B，進階）** — `failover-connectors.sh --to tag:<pool> --apply` 透過 audited plan pipeline 強制指定哪個 connector pool 服務設定好的 domain set，處理 native HA 看不到的 online-but-bad 情況（egress IP 錯誤、路徑劣化、quota、撤離）。Observe-first 且 fail-closed；見 [docs/Failover.md](docs/Failover.md)。
 - **📊 Connector HA 監察 + metrics** — `monitor-connectors.sh` 報告每台 connector 的 online／可達性／route 狀態，以及 per-connector metrics（Tx/Rx counters、liveness、`tailscale ping` latency、connection path）。用 `--prometheus-textfile` 輸出 node_exporter／Prometheus textfile，或用 `health_check.py peer-metrics` 讀單一 connector。
 - **🧭 引導式設定，automation 需 opt in** — 預設只產生手動 policy snippet；只有你選擇時才 opt in 可審核的 API policy（`plan` → `apply-plan`），永不自動執行。
 - **🩺 診斷，支援 JSON** — `diagnose.sh`（VPS）和 `check-client-routes.sh`（client）端到端驗證 routing，兩者都支援 `--json` 供 scripting 使用。
@@ -46,7 +56,7 @@ cd tailscale-ai-egress
 - [Quick Start](#quick-start)
 - [Manual Guided Mode](#manual-guided-mode)
 - [Advanced Policy Automation](#advanced-policy-automation)
-- [Domains](#domains)
+- [範例 domain 政策](#example-domain-policy-ai-services)
 - [Diagnostics](#diagnostics)
 - [Exit-Node Fallback](#exit-node-fallback)
 - [Rollback](#rollback)
@@ -66,16 +76,16 @@ cd tailscale-ai-egress
 
 ## 選擇模式
 
-如果你想讓指定 AI 服務使用可預期的 VPS egress IP，但不想把所有互聯網流量都送去同一台 VPS，可以使用這個工具——例如測試某個 VPS 地區的服務行為，或讓 AI 工具固定使用某個出口 IP，同時讓銀行、本地服務、地區敏感網站繼續走你平常的網絡。這不是獨立 VPN 或 proxy：它假設你已經使用，或願意使用 Tailscale，你亦需要自行遵守 AI 服務供應商、Tailscale、VPS 供應商及所在地網絡政策。
+如果你想讓指定服務（AI 服務是隨附範例）使用可預期的 VPS egress IP，但不想把所有互聯網流量都送去同一台 VPS，可以使用這個工具——例如測試某個 VPS 地區的服務行為，或讓選定的工具固定使用某個出口 IP，同時讓銀行、本地服務、地區敏感網站繼續走你平常的網絡。這不是獨立 VPN 或 proxy：它假設你已經使用，或願意使用 Tailscale，你亦需要自行遵守目的地服務的條款，以及 Tailscale、VPS 供應商及所在地網絡政策。
 
 ```mermaid
 flowchart LR
   device["你的裝置"] --> ts["Tailscale client"]
   ts --> decision{"目的地 domain?"}
-  decision -->|"AI request"| connector["Tailscale App Connector"]
+  decision -->|"符合的 domain"| connector["Tailscale App Connector"]
   connector --> vps["Linux VPS egress IP"]
-  vps --> ai["AI services / provider CDNs"]
-  ai -. "response / generated content" .-> vps
+  vps --> ai["選定服務（範例：AI）／CDN"]
+  ai -. "response" .-> vps
   vps -. "same path back" .-> connector
   connector -.-> ts
   ts -.-> device
@@ -86,8 +96,8 @@ flowchart LR
 
 | 你想… | 用 | 怎麼做 |
 | --- | --- | --- |
-| 只把指定 AI domains 經一台 VPS（預設） | **App Connector** | `./bootstrap.sh`，然後貼上產生的 snippet（Manual Guided Mode） |
-| 同一地區內，其中一台 VPS 離線時仍保持 AI egress | **同區 connector failover** | 用相同 `CONNECTOR_TAG` bootstrap 第二台 VPS；見 [docs/Failover.md](docs/Failover.md) |
+| 只把指定 domains 經一台 VPS（預設） | **App Connector** | `./bootstrap.sh`，然後貼上產生的 snippet（Manual Guided Mode） |
+| 同一地區內，其中一台 VPS 離線時仍保持選擇性 egress | **同區 connector failover** | 用相同 `CONNECTOR_TAG` bootstrap 第二台 VPS；見 [docs/Failover.md](docs/Failover.md) |
 | 臨時把所有流量都經 VPS（僅緊急用） | **Exit-node fallback** | `./enable-exit-node.sh`；之後用 `./disable-exit-node.sh` 停用 |
 | 主 exit node 離線時自動切換到備援 | **Exit-node failover（v1.1）** | `./failover-exit-node.sh --watch --apply`；見 [docs/Failover.md](docs/Failover.md) |
 | 監察一對主／備 connector（online 與可達性） | **Connector HA monitor（v1.1）** | `./monitor-connectors.sh --once`；見 [docs/Failover.md](docs/Failover.md) |
@@ -99,9 +109,9 @@ Manual Guided Mode 是建議的 policy 設定路徑。Advanced Admin Automation 
 
 | Mode | 意思 |
 | --- | --- |
-| `connector` | 預設模式，只讓設定好的 AI domains 經 VPS。 |
+| `connector` | 預設模式，只讓設定好的 domains 經 VPS。 |
 | `exit-node fallback` | 已 bootstrap connector host 的刻意 full-traffic fallback；cloud VPS 會消耗更多 data transfer。 |
-| `same-region connector failover` | 多台同區 VPS 使用同一 connector tag，讓新的 AI-domain 連線可轉去另一台在線 connector。 |
+| `same-region connector failover` | 多台同區 VPS 使用同一 connector tag，讓新的符合條件連線可轉去另一台在線 connector。 |
 
 App Connector 可理解為經 tagged Tailscale 裝置做 domain-selective routing；exit node 則 route *所有* 互聯網流量。底層行為見 Tailscale 的 [App Connectors](https://tailscale.com/docs/features/app-connectors) 和 [Exit Nodes](https://tailscale.com/docs/features/exit-nodes) 文件。
 
@@ -110,14 +120,14 @@ App Connector 可理解為經 tagged Tailscale 裝置做 domain-selective routin
 
 | 方法 | 適合 | 避免使用的情況 |
 | --- | --- | --- |
-| 本專案 | 你已經用 Tailscale，並只想把指定 AI domains 經 VPS | 你需要不依賴 Tailscale 的獨立 proxy/VPN |
-| 完整 Tailscale exit node | 你想所有 app 都用同一個遠端出口 IP | 你只想 route AI 服務，並想節省 VPS 流量 |
+| 本專案 | 你已經用 Tailscale，並只想把指定 domains（AI 服務是隨附範例）經 VPS | 你需要不依賴 Tailscale 的獨立 proxy/VPN |
+| 完整 Tailscale exit node | 你想所有 app 都用同一個遠端出口 IP | 你只想 route 部分 domains，並想節省 VPS 流量 |
 | WireGuard/OpenVPN | 你想使用獨立於 Tailscale 的傳統完整 VPN stack | 你不想管理另一套 VPN client/config |
 | SOCKS/HTTP proxy | 單一 app 或 browser profile 可以乾淨地設定 proxy | 你需要透明的 system-level domain routing |
 | SSH tunnel / port forwarding | 你只需要臨時 browser-level SOCKS route | 你想跨裝置自動 route，不想改 browser proxy settings |
 | Cloudflare WARP 或類似服務 | 你想要 managed consumer VPN-like path | 你需要自己的 VPS IP 作出口 |
 
-成本和效能取決於 VPS 地區、流量配額和 Tailscale plan。輕量 connector-only 使用通常可放入入門 VPS transfer allowance；但 exit-node fallback 可能很快用到數十或數百 GB，因為選用該 exit node 的 client 所有互聯網流量都會經 VPS。延遲大約會多出「你的裝置到 VPS」加「VPS 到 AI 服務」的路徑，互動式 chat 的 first-token latency 和 upload 最明顯。團隊或 production tailnet 使用前請確認 [Tailscale pricing](https://tailscale.com/pricing)。
+成本和效能取決於 VPS 地區、流量配額和 Tailscale plan。輕量 connector-only 使用通常可放入入門 VPS transfer allowance；但 exit-node fallback 可能很快用到數十或數百 GB，因為選用該 exit node 的 client 所有互聯網流量都會經 VPS。延遲大約會多出「你的裝置到 VPS」加「VPS 到服務」的路徑，互動式 chat 的 first-token latency 和 upload 最明顯。團隊或 production tailnet 使用前請確認 [Tailscale pricing](https://tailscale.com/pricing)。
 </details>
 
 <details>
@@ -141,7 +151,7 @@ App Connector 可理解為經 tagged Tailscale 裝置做 domain-selective routin
 - 在全新 VPS 安裝 Tailscale 和基本診斷工具。
 - 啟用 IPv4 和 IPv6 forwarding，供 connector routing 使用。
 - 把 VPS 設定成 Tailscale App Connector。
-- 讓你使用 common domain list，或輸入自訂 domains。
+- 讓你使用 common 範例 domain list，或輸入自訂 domains。
 - 預設產生 policy snippet，並引導你到 Tailscale Admin Console 手動合併。
 - 只有在你明確選擇 Advanced Mode 時，才會透過 Tailscale API 產生可審核 plan、validate，並在你確認後套用 tailnet policy。
 
@@ -164,7 +174,7 @@ Detected region: jp
 Region [jp]:
 Hostname keyword, 3-5 chars (Enter for 01):
 Which domains?
-  common - ChatGPT, Claude, Poe, OpenRouter, Perplexity (default)
+  common - example AI-service domain policy (default)
   custom - enter domains manually
 Domains [common]:
 Advanced Mode can update your Tailscale policy automatically.
@@ -186,7 +196,7 @@ Auth key 請用 `tskey-auth-...`，不要用 `tskey-api-...`。建議的 key 設
 [OK] ...
 
 Done
-If diagnostics show AI domains routing through Tailscale, the connector is ready.
+If diagnostics show your configured domains routing through Tailscale, the connector is ready.
 App Connector DNS discovery and route advertisement can take 1-2 minutes.
 On your client device, clone this repo or download check-client-routes.sh, then run:
   ./check-client-routes.sh
@@ -208,7 +218,7 @@ chmod +x check-client-routes.sh
 ./check-client-routes.sh
 ```
 
-AI domain routes 應該經 Tailscale。一般 public IP check 仍然可能顯示本地 ISP，因為 App Connector mode 只 route 符合條件的 domains。剛完成 setup 後如果 route 未出現，等 1-2 分鐘再跑一次 client check。
+符合條件的 domain routes 應該經 Tailscale。一般 public IP check 仍然可能顯示本地 ISP，因為 App Connector mode 只 route 符合條件的 domains。剛完成 setup 後如果 route 未出現，等 1-2 分鐘再跑一次 client check。
 
 ## Manual Guided Mode
 
@@ -248,16 +258,19 @@ python3 scripts/policy_tool.py list-plans
 
 完整細節（local preview/merge 流程與 plan bundle 內容）：[docs/Tailscale-API-mode.md](docs/Tailscale-API-mode.md)。
 
-## Domains
+## Example Domain Policy (AI services)
 
-Installer 預設使用唯一內建的 `common` domain list。需要自己管理 domains
-時，可以在 interactive wizard 選 `custom`，或者傳入 `--domains-file`。
+> **僅屬範例。** [`policy/default-ai-domains.json`](policy/default-ai-domains.json) 內的隨附 domain 清單（`common` pack）是**以常見 AI 服務示範選擇性 domain 路由**的範例。它**並非權威、並不完整，也不保證保持最新**。使用前請自行檢視並維護適用於你自己環境的 domain 政策。詳情見 [`policy/README.md`](policy/README.md)。
 
-| Pack | File | Domains |
+選擇性 domain 路由適用於**任何** domains——本工具組並非 AI 專用。Installer 預設使用內建的
+`common` 範例 pack。需要自己管理 domains 時，可以在 interactive wizard 選 `custom`，或者傳入
+`--domains-file`。
+
+| Pack | File | 內容 |
 | --- | --- | --- |
-| `common` | [policy/default-ai-domains.json](policy/default-ai-domains.json) | ChatGPT, Claude, Poe, OpenRouter, Perplexity, NotebookLM |
+| `common` | [policy/default-ai-domains.json](policy/default-ai-domains.json) | 範例 AI 服務 domains：OpenAI／ChatGPT、Anthropic／Claude、Poe、OpenRouter、Perplexity、Google NotebookLM、muse.ai、Hugging Face、xAI（包括共用的 `accounts.spacex.ai` 登入主機），以及 Cursor |
 
-非互動使用內建清單：
+非互動使用內建範例清單：
 
 ```bash
 ./bootstrap.sh --domain-pack common
@@ -271,22 +284,13 @@ Installer 預設使用唯一內建的 `common` domain list。需要自己管理 
 
 解析順序是：`--domain-pack common` XOR `--domains-file`，然後 `AI_EGRESS_DOMAINS_FILE`，然後 interactive wizard，最後預設 `common`。
 
-`common` 清單包含：
+確切且最新的項目，請閱讀 [`policy/default-ai-domains.json`](policy/default-ai-domains.json)，或執行 `python3 scripts/policy_tool.py domains --domains-file policy/default-ai-domains.json`。部分 base domains 也會包含 wildcard 版本，例如 `*.chatgpt.com`。Google NotebookLM 以具體 hostname 加入（例如 `notebooklm.google.com` 和 `notebooklm-pa.googleapis.com`）；刻意不加入 broad Google wildcards。
 
-```text
-chatgpt.com, openai.com, claude.ai, anthropic.com,
-poe.com, openrouter.ai, perplexity.ai, notebooklm.google.com
-```
-
-大部分 base domains 也會包含 wildcard 版本，例如 `*.chatgpt.com`。
-NotebookLM 只加入 exact domain `notebooklm.google.com`；刻意不加入 broad
-Google wildcards。
-
-內建 packs 刻意避開太廣泛的 infrastructure 或 identity domains，例如 `google.com`、`microsoft.com`、`cloudflare.com` 和一般 CDN domains，以減低 over-routing。只有在你的 use case 需要時，才手動加入 provider-specific app、API 或 asset domains。
+範例 pack 刻意避開太廣泛的 infrastructure 或 identity domains，例如 `google.com`、`microsoft.com`、`cloudflare.com` 和一般 CDN domains，以減低 over-routing。只有在你的 use case 需要時，才手動加入 provider-specific app、API 或 asset domains。
 
 加入 domains 時有兩層保護：廣泛的 CDN／共享基建 domains（例如 `cloudfront.net`、`amazonaws.com`、`fastly.net`、`akamaihd.net`、`azureedge.net`、`googleusercontent.com`）**validate 時只會警告**（它們可能把共用該 CDN 的無關流量也帶經 connector）；而最廣泛的 wildcards（`*.com`、`*.google.com`、`*.microsoft.com`、`*.cloudflare.com`、`*.googleapis.com`）則會被**封鎖**，除非你傳入 `--allow-broad-wildcard`。
 
-Gemini 和 Microsoft Copilot domains 沒有放入內建清單，因為它們可能牽涉較廣泛的 Google 或 Microsoft identity、app 和 CDN infrastructure。請只在測試過 tailnet routing 影響後才手動加入。
+Gemini 和 Microsoft Copilot domains 沒有放入範例清單，因為它們可能牽涉較廣泛的 Google 或 Microsoft identity、app 和 CDN infrastructure。請只在測試過 tailnet routing 影響後才手動加入。
 
 ## Diagnostics
 
@@ -310,7 +314,7 @@ Gemini 和 Microsoft Copilot domains 沒有放入內建清單，因為它們可�
 ./check-client-routes.sh
 ```
 
-它會檢查每個 AI domain 的 IPv4 A records 是否經 Tailscale App Connector path。當 domain 同時有 IPv6（AAAA）records 時，它也會**以 advisory 方式**檢查（獨立的 `*-ipv6` check ids）；IPv6 結果只作參考、永不會令整體失敗，沒有 AAAA 的 domain 則乾淨略過。它並用 `ipinfo.io` 作 baseline 確認 connector-only mode 下普通流量仍然留在本地。如果你刻意選用了 exit node，baseline traffic 經 selected exit node 是預期行為，因為那是 full-traffic mode。
+它會檢查每個選定 domain 的 IPv4 A records 是否經 Tailscale App Connector path。當 domain 同時有 IPv6（AAAA）records 時，它也會**以 advisory 方式**檢查（獨立的 `*-ipv6` check ids）；IPv6 結果只作參考、永不會令整體失敗，沒有 AAAA 的 domain 則乾淨略過。它並用 `ipinfo.io` 作 baseline 確認 connector-only mode 下普通流量仍然留在本地。如果你刻意選用了 exit node，baseline traffic 經 selected exit node 是預期行為，因為那是 full-traffic mode。
 
 兩個 diagnostics scripts 都使用 `[OK]`、`[WARN]`、`[FAIL]`。任何 `[FAIL]` 會用 exit code `1`；只有 warning 時 exit `0`，並在 stderr 印 summary。它們也支援 `--json`，輸出包含 `schema_version: 1`、`script`、`summary` 和 `checks`。
 
@@ -428,6 +432,7 @@ AI_EGRESS_DOMAINS_FILE=/path/to/domains.txt
 ## 文件
 
 - [docs/Stability.md](docs/Stability.md) — 1.x 凍結範圍與支援政策。
+- [docs/Roadmap.md](docs/Roadmap.md) — 1.2+／2.0 的非約束性規劃方向與封存狀態說明。
 - [docs/Configuration.md](docs/Configuration.md) — environment variables 與建議 auth-key 設定。
 - [docs/Tailscale-API-mode.md](docs/Tailscale-API-mode.md) — Advanced policy automation 詳解。
 - [docs/Failover.md](docs/Failover.md) — 同區 connector failover。

@@ -32,7 +32,7 @@ usage() {
   cat <<'EOF'
 Usage: ./bootstrap.sh [--dry-run] [--domain-pack name] [--domains-file path] [--version] [--help]
 
-Bootstrap a Linux VPS as a Tailscale AI App Connector.
+Bootstrap a Linux VPS as a Tailscale App Connector (selective domain egress).
 
 Options:
   --dry-run           Print privileged commands and skip live diagnostics.
@@ -536,7 +536,7 @@ show_domains_file() {
 
 select_domain_pack_interactive() {
   note "Which domains?"
-  note "  common - ChatGPT, Claude, Poe, OpenRouter, Perplexity (default)"
+  note "  common - example AI-service domain policy (default)"
   note "  custom - enter domains manually"
 
   local answer
@@ -596,7 +596,7 @@ collect_custom_domains() {
 }
 
 collect_domains() {
-  say "Choosing AI domains"
+  say "Choosing domains"
   mkdir -p "$GENERATED_DIR"
 
   if [ -n "$CLI_DOMAIN_PACK" ]; then
@@ -883,7 +883,7 @@ main() {
     mode_suffix=" (dry-run)"
   fi
 
-  say "Tailscale AI Egress Connector Bootstrap$mode_suffix"
+  say "Tailscale Network Control Bootstrap$mode_suffix"
   note "Connector name:     $CONNECTOR_NAME"
   note "Connector tag:      $CONNECTOR_TAG"
   note "Connector hostname: $CONNECTOR_HOSTNAME"
@@ -907,7 +907,7 @@ main() {
   run_diagnostics
 
   say "Done"
-  note "If diagnostics show AI domains routing through Tailscale, the connector is ready."
+  note "If diagnostics show your configured domains routing through Tailscale, the connector is ready."
   note "App Connector DNS discovery and route advertisement can take 1-2 minutes."
   note "On your client device, clone this repo or download check-client-routes.sh, then run:"
   note "  ./check-client-routes.sh"

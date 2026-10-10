@@ -1,4 +1,4 @@
-# Tailscale AI Egress Connector
+# Tailscale Network Control
 
 Languages: English | [繁體中文（香港）](README.zh-HK.md)
 
@@ -7,9 +7,43 @@ Languages: English | [繁體中文（香港）](README.zh-HK.md)
 ![Version](https://img.shields.io/badge/version-1.4.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Linux%20VPS%20%C2%B7%20POSIX%20shell-lightgrey)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)
-![status](https://img.shields.io/badge/status-LIVE-2ee6a6)
+![status](https://img.shields.io/badge/status-ARCHIVED-6b6f73)
 
-A small bootstrap toolkit for creating a personal Tailscale App Connector that routes selected AI-related domains through a chosen VPS egress IP, while keeping normal traffic on the user's local network or preferred exit node.
+A lightweight companion toolkit for Tailscale — adding **selective routing, health-aware
+failover, and network usage visibility** to tailnets used for secure private access.
+
+Tailscale itself provides the secure private access between your devices — for example
+Tailscale SSH, macOS Screen Sharing over the tailnet, and other private services. This
+toolkit does **not** implement or manage SSH, Screen Sharing, or VNC; it adds a selective
+outbound-egress layer alongside them, without touching those peer-to-peer services. It
+configures a Tailscale **App Connector** that applies **selective domain-routing policies**
+(only chosen domains take a VPS egress IP, while normal traffic stays on your local network
+or preferred exit node), provides **ordered, health-aware exit-node failover** plus a
+fail-closed, operator-invoked connector-pool switch (alongside Tailscale's native
+online/offline connector HA), and reports **connector health and network usage**
+(Prometheus-compatible).
+
+The bundled AI-service domain policy is an **example only** — see
+[Example domain policy](#example-domain-policy-ai-services). The routing, failover, and
+monitoring mechanisms are domain-agnostic — this is a general selective-routing toolkit —
+though its defaults and historical identifiers remain AI-named for compatibility (see the
+proposed-name note below).
+
+> **Proposed name.** The public-facing name is being updated to **Tailscale Network
+> Control** (proposed repository name `tailscale-network-control`) to reflect this broader
+> scope. The project is still published from the `tailscale-ai-egress` repository, and
+> several internal identifiers — service tags (`tag:ai-egress-*`), the default connector
+> name (`AI-Egress-*`), state/install paths, the `AI_EGRESS_DOMAINS_FILE` environment
+> variable, `--version` strings, and the GitHub repository URL — intentionally keep the
+> historical `tailscale-ai-egress` name for compatibility. Clone and download commands
+> below use that historical name because it is the real repository URL.
+
+> **Project status.** This repository is being prepared for archival and is no longer
+> planned for active feature development. It remains useful as a reference
+> implementation: its validated routing, failover, and monitoring semantics stay relevant,
+> and the bundled AI-service domain policy is only an example. Future work is moving toward
+> a broader secure-networking architecture that is not constrained to an AI-specific use
+> case.
 
 > **Stable v1.x.** The 1.0 command surface is frozen — see [docs/Stability.md](docs/Stability.md); v1.1 adds opt-in failover and health-monitoring helpers (`failover-exit-node.sh`, `monitor-connectors.sh`) without changing it. Every entrypoint supports `--version` and `--help`. Licensed under [MIT](LICENSE). New here? Jump to [Which Mode Should I Use?](#which-mode-should-i-use) and the [Quick Start](#quick-start).
 
@@ -27,10 +61,15 @@ Choose the default `common` domains, answer `N` to Advanced Mode, paste the gene
 
 ## Features
 
-- **🎯 Domain-selective AI egress** — route only the AI domains you choose through a VPS exit IP; everything else stays on your local network or preferred exit node.
-- **🔁 Same-region connector failover** — run two or more App Connectors under one tag so new AI-domain connections move to a healthy connector if one goes offline.
+The toolkit adds three capabilities to an existing Tailscale tailnet — selective routing,
+health-aware failover, and network usage visibility — for networks you also use for secure
+private access (which Tailscale itself provides: Tailscale SSH, macOS Screen Sharing,
+private services).
+
+- **🎯 Selective domain routing** — route only the domains you choose through a VPS egress IP; everything else stays on your local network or preferred exit node. The bundled policy uses common AI-service domains as an [example](#example-domain-policy-ai-services).
+- **🔁 Same-region connector failover** — run two or more App Connectors under one tag so new matching-domain connections move to a healthy connector if one goes offline.
 - **🛟 Exit-node failover controller** — `failover-exit-node.sh --watch --apply` promotes a backup exit node when the primary fails its health check, with hysteresis, cooldown, and an optional post-switch notify hook.
-- **🔀 Distinct-tag connector switch (Model B, advanced)** — `failover-connectors.sh --to tag:<pool> --apply` forces which connector pool serves the AI domain set through the audited plan pipeline, for the online-but-bad cases native HA cannot see (wrong egress IP, degraded path, quota, evacuation). Observe-first and fail-closed; see [docs/Failover.md](docs/Failover.md).
+- **🔀 Distinct-tag connector switch (Model B, advanced)** — `failover-connectors.sh --to tag:<pool> --apply` forces which connector pool serves the configured domain set through the audited plan pipeline, for the online-but-bad cases native HA cannot see (wrong egress IP, degraded path, quota, evacuation). Observe-first and fail-closed; see [docs/Failover.md](docs/Failover.md).
 - **📊 Connector HA monitoring + metrics** — `monitor-connectors.sh` reports each connector's online / reachability / route state plus per-connector metrics (Tx/Rx counters, liveness, `tailscale ping` latency, connection path). Emit a node_exporter / Prometheus textfile with `--prometheus-textfile`, or read one connector with `health_check.py peer-metrics`.
 - **🧭 Guided setup, opt-in automation** — a manual policy snippet by default; opt in to auditable API-driven policy (`plan` → `apply-plan`) only when you choose, never automatically.
 - **🩺 Diagnostics, JSON-ready** — `diagnose.sh` (VPS) and `check-client-routes.sh` (client) verify routing end to end; both support `--json` for scripting.
@@ -44,7 +83,7 @@ Choose the default `common` domains, answer `N` to Advanced Mode, paste the gene
 - [Quick Start](#quick-start)
 - [Manual Guided Mode](#manual-guided-mode)
 - [Advanced Policy Automation](#advanced-policy-automation)
-- [Domains](#domains)
+- [Example Domain Policy](#example-domain-policy-ai-services)
 - [Diagnostics](#diagnostics)
 - [Exit-Node Fallback](#exit-node-fallback)
 - [Rollback](#rollback)
@@ -64,16 +103,16 @@ You need:
 
 ## Which Mode Should I Use?
 
-Use this when you want a predictable VPS egress IP for selected AI services without sending all of your internet traffic through that VPS — for example, testing service behavior from a specific region, or keeping AI tools on a known egress IP while banking, local services, and region-sensitive sites stay on your normal network. This is not a standalone VPN or proxy: it assumes you already use, or are willing to use, Tailscale, and you remain responsible for AI provider, Tailscale, VPS, and local network policies.
+Use this when you want a predictable VPS egress IP for selected services — AI services are the bundled example — without sending all of your internet traffic through that VPS. For example: testing service behavior from a specific region, or keeping chosen tools on a known egress IP while banking, local services, and region-sensitive sites stay on your normal network. This is not a standalone VPN or proxy: it assumes you already use, or are willing to use, Tailscale, and you remain responsible for the destination services' terms plus your Tailscale, VPS, and local network policies.
 
 ```mermaid
 flowchart LR
   device["Your device"] --> ts["Tailscale client"]
   ts --> decision{"Destination domain?"}
-  decision -->|"AI request"| connector["Tailscale App Connector"]
+  decision -->|"Matched domain"| connector["Tailscale App Connector"]
   connector --> vps["Linux VPS egress IP"]
-  vps --> ai["AI services / provider CDNs"]
-  ai -. "response / generated content" .-> vps
+  vps --> ai["Selected services (example: AI) / CDNs"]
+  ai -. "response" .-> vps
   vps -. "same path back" .-> connector
   connector -.-> ts
   ts -.-> device
@@ -84,8 +123,8 @@ Most people should start with the **App Connector default** and never change it.
 
 | If you want to... | Use | How |
 | --- | --- | --- |
-| Route only selected AI domains through one VPS (the default) | **App Connector** | `./bootstrap.sh`, then paste the generated snippet (Manual Guided Mode) |
-| Keep AI egress working if one VPS goes down, in the same region | **Same-region connector failover** | Bootstrap a second VPS with the same `CONNECTOR_TAG`; see [docs/Failover.md](docs/Failover.md) |
+| Route only selected domains through one VPS (the default) | **App Connector** | `./bootstrap.sh`, then paste the generated snippet (Manual Guided Mode) |
+| Keep selective egress working if one VPS goes down, in the same region | **Same-region connector failover** | Bootstrap a second VPS with the same `CONNECTOR_TAG`; see [docs/Failover.md](docs/Failover.md) |
 | Temporarily send all traffic through the VPS (emergency only) | **Exit-node fallback** | `./enable-exit-node.sh`; stop later with `./disable-exit-node.sh` |
 | Automatically fail an exit node over to a backup when the primary goes down | **Exit-node failover (v1.1)** | `./failover-exit-node.sh --watch --apply`; see [docs/Failover.md](docs/Failover.md) |
 | Monitor a primary/fallback connector pair (online + reachability) | **Connector HA monitor (v1.1)** | `./monitor-connectors.sh --once`; see [docs/Failover.md](docs/Failover.md) |
@@ -97,9 +136,9 @@ The repo uses three explicit modes:
 
 | Mode | Meaning |
 | --- | --- |
-| `connector` | Default mode. Only configured AI domains should use the VPS path. |
+| `connector` | Default mode. Only the configured domains should use the VPS path. |
 | `exit-node fallback` | Intentional full-traffic mode for an already-bootstrapped connector host. Use sparingly on cloud VPS plans because all selected-client internet traffic can consume VPS transfer. |
-| `same-region connector failover` | Two or more App Connector VPS nodes share the same connector tag so new matching AI-domain connections can move to another online connector. |
+| `same-region connector failover` | Two or more App Connector VPS nodes share the same connector tag so new matching-domain connections can move to another online connector. |
 
 An App Connector is domain-selective routing through a tagged Tailscale device; an exit node routes *all* internet traffic. See Tailscale's docs for [App Connectors](https://tailscale.com/docs/features/app-connectors) and [Exit Nodes](https://tailscale.com/docs/features/exit-nodes).
 
@@ -108,14 +147,14 @@ An App Connector is domain-selective routing through a tagged Tailscale device; 
 
 | Approach | Choose It When | Avoid It When |
 | --- | --- | --- |
-| This project | You already use Tailscale and want only selected AI-related domains through a VPS | You need a standalone proxy/VPN without Tailscale |
-| Full Tailscale exit node | You want every app to use the same remote egress IP | You only want AI services routed and want to save VPS transfer |
+| This project | You already use Tailscale and want only selected domains (AI services are the bundled example) through a VPS | You need a standalone proxy/VPN without Tailscale |
+| Full Tailscale exit node | You want every app to use the same remote egress IP | You only want a subset of domains routed and want to save VPS transfer |
 | WireGuard/OpenVPN | You want a traditional full VPN stack independent of Tailscale | You do not want to manage a separate VPN client/config |
 | SOCKS/HTTP proxy | One app or browser profile can be configured to use a proxy cleanly | You need transparent system-level domain routing |
 | SSH tunnel / port forwarding | You only need a quick browser-level SOCKS route through one server | You want automatic routing across devices without changing browser proxy settings |
 | Cloudflare WARP or similar | You want a managed consumer VPN-like path | You need egress from your own VPS IP |
 
-Cost and latency depend on your VPS region, bandwidth allowance, and Tailscale plan. Light connector-only use often fits an entry-level VPS transfer allowance, while exit-node fallback can consume tens or hundreds of GB quickly because every selected-client connection uses the VPS. Expect extra latency roughly equal to your device-to-VPS path plus the VPS-to-AI-service path; interactive chat feels this most on first-token latency and uploads, so test with your own VPS first. Check [Tailscale pricing](https://tailscale.com/pricing) before using it in a team or production tailnet.
+Cost and latency depend on your VPS region, bandwidth allowance, and Tailscale plan. Light connector-only use often fits an entry-level VPS transfer allowance, while exit-node fallback can consume tens or hundreds of GB quickly because every selected-client connection uses the VPS. Expect extra latency roughly equal to your device-to-VPS path plus the VPS-to-service path; interactive chat feels this most on first-token latency and uploads, so test with your own VPS first. Check [Tailscale pricing](https://tailscale.com/pricing) before using it in a team or production tailnet.
 </details>
 
 <details>
@@ -139,7 +178,7 @@ Cost and latency depend on your VPS region, bandwidth allowance, and Tailscale p
 - Installs Tailscale and basic diagnostics tools on a fresh VPS.
 - Enables IPv4 and IPv6 forwarding for connector routing.
 - Configures the VPS as a Tailscale App Connector.
-- Lets the user use the common domain list, or enter custom domains.
+- Lets the user use the common example domain list, or enter custom domains.
 - Generates a policy snippet and guides the user through the Tailscale Admin Console by default.
 - In explicit Advanced Mode only, can back up, merge, validate, and apply the tailnet policy through the Tailscale API.
 - Provides separate helper scripts for intentional exit-node fallback after the connector is already working.
@@ -163,7 +202,7 @@ Detected region: jp
 Region [jp]:
 Hostname keyword, 3-5 chars (Enter for 01):
 Which domains?
-  common - ChatGPT, Claude, Poe, OpenRouter, Perplexity (default)
+  common - example AI-service domain policy (default)
   custom - enter domains manually
 Domains [common]:
 Advanced Mode can update your Tailscale policy automatically.
@@ -189,7 +228,7 @@ A successful run ends with:
 [OK] ...
 
 Done
-If diagnostics show AI domains routing through Tailscale, the connector is ready.
+If diagnostics show your configured domains routing through Tailscale, the connector is ready.
 App Connector DNS discovery and route advertisement can take 1-2 minutes.
 On your client device, clone this repo or download check-client-routes.sh, then run:
   ./check-client-routes.sh
@@ -211,7 +250,7 @@ chmod +x check-client-routes.sh
 ./check-client-routes.sh
 ```
 
-AI domain routes should point to Tailscale. Ordinary public IP checks may still show your local ISP because App Connector mode only routes matching domains. If the first check warns or fails right after setup, wait 1-2 minutes for DNS discovery and route advertisement, then run the client check again.
+Matched-domain routes should point to Tailscale. Ordinary public IP checks may still show your local ISP because App Connector mode only routes matching domains. If the first check warns or fails right after setup, wait 1-2 minutes for DNS discovery and route advertisement, then run the client check again.
 
 ## Manual Guided Mode
 
@@ -258,17 +297,24 @@ To opt in through the installer instead, export `TAILSCALE_API_KEY` (or the `TAI
 
 Full details — local preview/merge flows (`validate`, `merge --diff`) and the plan bundle contents (`current.hujson`, `merged.json`, `diff.patch`, `manifest.json`): [docs/Tailscale-API-mode.md](docs/Tailscale-API-mode.md).
 
-## Domains
+## Example Domain Policy (AI services)
 
-The installer uses one built-in `common` domain list by default. Choose
-`custom` in the interactive wizard, or pass `--domains-file`, when you want to
-manage the domains manually.
+> **Example only.** The bundled domain list in
+> [`policy/default-ai-domains.json`](policy/default-ai-domains.json) (the `common` pack) is
+> provided as an **example of selective domain routing using common AI services**. It is
+> **not authoritative, exhaustive, or guaranteed to remain current**. Review and maintain
+> domain policies for your own environment before use. See
+> [`policy/README.md`](policy/README.md) for details and the historical-identifier note.
 
-| Pack | File | Domains |
+Selective domain routing works with **any** domains — the toolkit is not AI-specific. The
+installer uses the built-in `common` example pack by default. Choose `custom` in the
+interactive wizard, or pass `--domains-file`, when you want to manage the domains manually.
+
+| Pack | File | Contents |
 | --- | --- | --- |
-| `common` | [policy/default-ai-domains.json](policy/default-ai-domains.json) | ChatGPT, Claude, Poe, OpenRouter, Perplexity, NotebookLM |
+| `common` | [policy/default-ai-domains.json](policy/default-ai-domains.json) | Example AI-service domains: OpenAI/ChatGPT, Anthropic/Claude, Poe, OpenRouter, Perplexity, Google NotebookLM, muse.ai, Hugging Face, xAI (including the shared `accounts.spacex.ai` login host), and Cursor |
 
-You can select the built-in list non-interactively:
+You can select the built-in example list non-interactively:
 
 ```bash
 ./bootstrap.sh --domain-pack common
@@ -282,22 +328,18 @@ Or pass a custom file:
 
 Resolution order is: `--domain-pack common` XOR `--domains-file`, then `AI_EGRESS_DOMAINS_FILE`, then the interactive wizard, then `common`.
 
-The `common` list contains:
+For the exact, current entries, read
+[`policy/default-ai-domains.json`](policy/default-ai-domains.json) or run `python3
+scripts/policy_tool.py domains --domains-file policy/default-ai-domains.json`. Several base
+domains also include their wildcard form, such as `*.chatgpt.com`. Google NotebookLM is
+included as specific hostnames (for example `notebooklm.google.com` and
+`notebooklm-pa.googleapis.com`); broad Google wildcards are intentionally not included.
 
-```text
-chatgpt.com, openai.com, claude.ai, anthropic.com,
-poe.com, openrouter.ai, perplexity.ai, notebooklm.google.com
-```
-
-Most base domains also include their wildcard form, such as `*.chatgpt.com`.
-NotebookLM is included as the exact domain `notebooklm.google.com`; broad Google
-wildcards are intentionally not included.
-
-The built-in packs intentionally avoid broad infrastructure or identity domains like `google.com`, `microsoft.com`, `cloudflare.com`, and generic CDN domains to reduce over-routing. Add provider-specific app, API, or asset domains manually only if your use case needs them.
+The example pack intentionally avoids broad infrastructure or identity domains like `google.com`, `microsoft.com`, `cloudflare.com`, and generic CDN domains to reduce over-routing. Add provider-specific app, API, or asset domains manually only if your use case needs them.
 
 Two guardrails apply when you add domains: broad CDN / shared-infrastructure domains such as `cloudfront.net`, `amazonaws.com`, `fastly.net`, `akamaihd.net`, `azureedge.net`, and `googleusercontent.com` **validate with a warning** (they can pull unrelated traffic that shares the CDN through the connector), while the very broadest wildcards (`*.com`, `*.google.com`, `*.microsoft.com`, `*.cloudflare.com`, `*.googleapis.com`) are **blocked** unless you pass `--allow-broad-wildcard`.
 
-Gemini and Microsoft Copilot domains are not in the default list because they can involve broad Google or Microsoft identity, app, and CDN infrastructure. Add those domains manually only after testing the routing impact for your tailnet.
+Gemini and Microsoft Copilot domains are not in the example list because they can involve broad Google or Microsoft identity, app, and CDN infrastructure. Add those domains manually only after testing the routing impact for your tailnet.
 
 ## Diagnostics
 
@@ -321,7 +363,7 @@ Run client-side route verification on your Mac or Linux client:
 ./check-client-routes.sh
 ```
 
-It checks every IPv4 A record for the selected AI domains and reports whether they route through the Tailscale App Connector path. When a domain also publishes IPv6 (AAAA) records, it inspects those too as an **advisory** check (separate `*-ipv6` check ids); IPv6 findings are informational and never fail the run, and a domain with no AAAA is skipped cleanly. It also checks a baseline domain, `ipinfo.io`, to confirm ordinary traffic stays local in connector-only mode. If you intentionally use an exit node, baseline traffic through the selected exit node is expected because that is full-traffic mode.
+It checks every IPv4 A record for the selected domains and reports whether they route through the Tailscale App Connector path. When a domain also publishes IPv6 (AAAA) records, it inspects those too as an **advisory** check (separate `*-ipv6` check ids); IPv6 findings are informational and never fail the run, and a domain with no AAAA is skipped cleanly. It also checks a baseline domain, `ipinfo.io`, to confirm ordinary traffic stays local in connector-only mode. If you intentionally use an exit node, baseline traffic through the selected exit node is expected because that is full-traffic mode.
 
 Both diagnostic scripts use `[OK]`, `[WARN]`, and `[FAIL]`. Any `[FAIL]` exits with status `1`; warnings alone exit `0` and print a summary to stderr. For scripted support, both scripts also support `--json`; JSON output includes `schema_version: 1`, `script`, `summary`, and `checks`.
 
@@ -365,7 +407,7 @@ Partial explicit identity, stale persisted identity, and multiple matching
 
 ## Multi-Machine Failover
 
-For same-region connector failover, you can run two connectors, such as AWS Lightsail plus WebARENA in Japan, under the same connector tag (`tag:ai-egress-jp`). This lets Tailscale move new matching AI-domain connections to another online connector after it detects one connector is unavailable. Use different tags, such as `tag:ai-egress-jp` and `tag:ai-egress-us`, for cross-region egress to avoid unexpected latency or region switching.
+For same-region connector failover, you can run two connectors, such as AWS Lightsail plus WebARENA in Japan, under the same connector tag (`tag:ai-egress-jp`). This lets Tailscale move new matching-domain connections to another online connector after it detects one connector is unavailable. Use different tags, such as `tag:ai-egress-jp` and `tag:ai-egress-us`, for cross-region egress to avoid unexpected latency or region switching.
 
 Detailed setup and verification: [docs/Failover.md](docs/Failover.md). Provider notes: [AWS Lightsail](docs/AWS-Lightsail.md) · [WebARENA](docs/WebARENA.md) · [Generic VPS](docs/Generic-VPS.md) · [Home Mac exit node](docs/Home-Mac-Exit-Node.md).
 

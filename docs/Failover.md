@@ -1,6 +1,6 @@
 # Multi-Machine Failover
 
-This guide focuses on AI egress. The examples below keep AI-related domains on a predictable Tailscale App Connector path while normal traffic stays local or on the user's chosen exit node.
+This guide focuses on selective-egress failover. The examples below keep selected domains (AI services are the bundled example) on a predictable Tailscale App Connector path while normal traffic stays local or on the user's chosen exit node.
 
 Use this guide when you want two connector machines in the same egress region, usually across different providers, so a second machine can take over new matching connections if the first machine goes offline. For the single-machine VPS flow, start with [AWS Lightsail Notes](AWS-Lightsail.md), [WebARENA Notes](WebARENA.md), or [Generic VPS Notes](Generic-VPS.md).
 
@@ -27,7 +27,7 @@ reading on:
 - **Model B — distinct-tag pools with forced selection (advanced,
   opt-in).** Primary and fallback connector pools live under
   distinct tags, and an operator-invoked, auditable switch forces which pool
-  serves the AI domain set. It composes with — and does not replace — native
+  serves the configured domain set. It composes with — and does not replace — native
   HA. See
   [Advanced Mode: Distinct-Tag Active Connector Switch (Model B)](#advanced-mode-distinct-tag-active-connector-switch-model-b).
 
@@ -40,7 +40,7 @@ The intended pool is same-region, multi-provider failover:
 | AWS Lightsail | `ai-egress-jp-aws-01` | `tag:ai-egress-jp` |
 | WebARENA | `ai-egress-jp-web-01` | `tag:ai-egress-jp` |
 
-Both machines use the same connector tag because they serve the same egress region and the same AI domain set. If you intentionally use cross-region egress, use different tags such as `tag:ai-egress-jp` and `tag:ai-egress-us` to avoid unexpected latency or region switching. That cross-region advice is about separate per-region deployments — each region's pool still uses one tag, so it is Model A per region. Forcing which of two distinct-tag pools serves a *single* AI domain set is a different, advanced workflow: see [Advanced Mode (Model B)](#advanced-mode-distinct-tag-active-connector-switch-model-b).
+Both machines use the same connector tag because they serve the same egress region and the same configured domain set. If you intentionally use cross-region egress, use different tags such as `tag:ai-egress-jp` and `tag:ai-egress-us` to avoid unexpected latency or region switching. That cross-region advice is about separate per-region deployments — each region's pool still uses one tag, so it is Model A per region. Forcing which of two distinct-tag pools serves a *single* configured domain set is a different, advanced workflow: see [Advanced Mode (Model B)](#advanced-mode-distinct-tag-active-connector-switch-model-b).
 
 AWS Lightsail and WebARENA may differ in IPv6 support, firewall defaults, and bandwidth quota. Bring each provider up as a working single connector before pairing them for failover. This is connector failover, not exit-node failover; normal traffic should stay local unless a client deliberately selects an exit node.
 
@@ -53,7 +53,7 @@ So you do not need policy edits to get a deterministic primary/fallback pair —
 1. If needed, remove or re-authenticate both connector machines so their join order is clean.
 2. Bring up **WebARENA first** and let it come online.
 3. Bring up **AWS second**.
-4. Keep both online with the same connector tag and the same AI domain set.
+4. Keep both online with the same connector tag and the same configured domain set.
 
 Tailscale then treats WebARENA (the oldest) as primary and fails over to AWS when WebARENA goes offline. With `tailscale down`, failover takes up to ~15 seconds; a network partition can take longer. Within one tag, this project intentionally does not reassign connectors via the policy API — native oldest-first ordering is enough for a primary/fallback pair. For forced pool-level selection *across distinct tags*, see [Advanced Mode (Model B)](#advanced-mode-distinct-tag-active-connector-switch-model-b).
 
@@ -96,7 +96,7 @@ Verify that both machines are visible:
 tailscale status | grep ai-egress-jp
 ```
 
-Verify client routes for configured AI domains:
+Verify client routes for the configured domains:
 
 ```bash
 ./check-client-routes.sh
@@ -108,7 +108,7 @@ To test failover, stop `tailscaled` on one connector, wait for Tailscale clients
 
 ## Health Checks
 
-At minimum, monitor that each connector is online in Tailscale and that sample AI domains still resolve to a Tailscale route from a client:
+At minimum, monitor that each connector is online in Tailscale and that sample configured domains still resolve to a Tailscale route from a client:
 
 ```bash
 tailscale status | grep ai-egress-jp
@@ -153,7 +153,7 @@ policy's `connectors` list names the **active** pool; an operator-invoked
 switch rewrites that one list through the audited plan-bundle pipeline.
 **Model B does not replace Tailscale-native HA; the two compose:** native HA
 keeps operating *inside* each pool exactly as in Model A, and the switch moves
-the AI domain set *between* pools. Each pool may still hold several nodes.
+the configured domain set *between* pools. Each pool may still hold several nodes.
 
 ### When to use it
 
@@ -162,7 +162,7 @@ the AI domain set *between* pools. Each pool may still hold several nodes.
 | Node offline / unreachable / route withdrawn | **yes** | not needed |
 | Egress IP wrong (geo/reputation/provider NAT change) | no — node looks healthy | **yes** |
 | Provider path degraded (loss/latency, peering incident) | no | **yes** |
-| Provider quota / rate-limit exhausted for the AI service | no | **yes** |
+| Provider quota / rate-limit exhausted for a destination service | no | **yes** |
 | Planned maintenance / deliberate evacuation | no | **yes** |
 | Automatic, unattended failover on health signals | native HA already covers the node-down case | **no — out of scope in v1.3** |
 
@@ -386,7 +386,7 @@ Three layers, preferred first:
 
 ## Exit-Node Failover (Full Traffic)
 
-Connector failover above only covers the selected AI domains. If you also route *all* other traffic through an exit node, note that Tailscale does not provide priority-ordered exit-node failover (only `--exit-node=auto:any`, which selects by latency rather than a fixed primary/fallback order). `failover-exit-node.sh` adds a client-side exit-node controller for macOS and Linux: one primary plus an **ordered fallback list**.
+Connector failover above only covers the selected domains. If you also route *all* other traffic through an exit node, note that Tailscale does not provide priority-ordered exit-node failover (only `--exit-node=auto:any`, which selects by latency rather than a fixed primary/fallback order). `failover-exit-node.sh` adds a client-side exit-node controller for macOS and Linux: one primary plus an **ordered fallback list**.
 
 It probes the primary and every configured fallback each cycle and, when run with `--apply`, switches the local `tailscale set --exit-node` to the highest-priority fallback that passed its ping when the primary fails, then switches back when the primary recovers (unless `RESTORE_PRIMARY=0`). With more than one fallback (`FALLBACK_EXIT_NODE=node-b,node-c,node-d` — order is priority), the controller also fails over **between fallbacks**: when the active fallback goes down and the primary cannot be restored, the next verified fallback in configuration order takes over. It is observe-first: without `--apply` it only reports the proposed action, and it only ever switches to a node that passed its ping in the same cycle; a switch reads back against the **concrete target node's identity** (not just its role), so a switch that did not take is reported as failed — nothing is recorded and the cooldown clock is untouched.
 
@@ -463,4 +463,4 @@ export FAILOVER_NOTIFY_CMD='[ "$FAILOVER_EVENT" = switched ] && \
 
 In Model B, if the machine you are taking out is the active pool's last online
 node, [switch the active pool](#advanced-mode-distinct-tag-active-connector-switch-model-b)
-first — otherwise the AI domain set is left with no online connector.
+first — otherwise the configured domain set is left with no online connector.

@@ -1,7 +1,7 @@
 # Configuration Reference
 
-Environment variables and recommended auth-key settings for the Tailscale AI
-Egress Connector.
+Environment variables and recommended auth-key settings for Tailscale Network Control (the
+`tailscale-ai-egress` toolkit).
 
 Most users do not need anything here — the interactive `./bootstrap.sh` wizard
 covers the common path. These options are for non-interactive runs, CI/automation,
